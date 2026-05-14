@@ -16,6 +16,9 @@ RUN apt-get update && apt-get install -y \
 # Explicitly tell node-gyp to use Python 3
 ENV PYTHON=python3
 
+# Tell the build script what version we are compiling
+ENV VERSION="0.0.0-custom"
+
 WORKDIR /src
 COPY . .
 
