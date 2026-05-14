@@ -2,7 +2,7 @@
 # STAGE 1: The Builder
 # Compiles your custom source code from GitHub
 # ==========================================
-FROM node:20-bullseye AS builder
+FROM node:22-bookworm AS builder
 
 # Install system dependencies required for compiling VS Code native C++ modules
 RUN apt-get update && apt-get install -y \
@@ -30,7 +30,7 @@ RUN npm run release:standalone
 # STAGE 2: The Final App Image
 # Runs your freshly compiled custom editor
 # ==========================================
-FROM node:20-bullseye-slim
+FROM node:22-bookworm-slim
 
 # Install standard terminal tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
