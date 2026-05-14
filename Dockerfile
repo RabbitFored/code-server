@@ -2,7 +2,7 @@
 # STAGE 1: The Builder
 # Compiles your custom source code from GitHub
 # ==========================================
-FROM node:18-bullseye AS builder
+FROM node:20-bullseye AS builder
 
 # Install system dependencies required for compiling VS Code native C++ modules
 RUN apt-get update && apt-get install -y \
@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
     libxkbfile-dev \
     libsecret-1-dev \
     pkg-config
+
+# Explicitly tell node-gyp to use Python 3
+ENV PYTHON=python3
 
 WORKDIR /src
 COPY . .
@@ -27,9 +30,9 @@ RUN npm run release:standalone
 # STAGE 2: The Final App Image
 # Runs your freshly compiled custom editor
 # ==========================================
-FROM node:18-bullseye-slim
+FROM node:20-bullseye-slim
 
-# Install standard terminal tools (incorporating Claude's suggestions)
+# Install standard terminal tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
@@ -57,7 +60,7 @@ WORKDIR /home/coder/workspace
 
 EXPOSE 8080
 
-# Health check (helps CapRover monitor if your custom build crashed)
+# Health check (helps CapRover monitor your custom build)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080 || exit 1
 
