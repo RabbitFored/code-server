@@ -5,7 +5,6 @@
 FROM node:22-bookworm AS builder
 
 # Install system dependencies required for compiling VS Code native C++ modules
-# 'jq' is added here to parse JSON during the build script
 RUN apt-get update && apt-get install -y \
     python3 \
     build-essential \
@@ -24,9 +23,12 @@ ENV VERSION="0.0.0-custom"
 WORKDIR /src
 COPY . .
 
-# Run the official build pipeline using NPM
 RUN npm install
 RUN npm run build
+
+# PATCH: Fix the upstream Gulp task naming mismatch in the bleeding-edge build script
+RUN sed -i 's/compile-copilot-extension-full-build/compile-copilot-extension-build/g' ci/build/build-vscode.sh
+
 RUN npm run build:vscode
 RUN npm run release
 RUN npm run release:standalone
