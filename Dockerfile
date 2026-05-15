@@ -6,7 +6,7 @@ FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Python, C++ compilers, build utilities, and the missing Kerberos library
+# Install Python, C++ compilers, build utilities, Kerberos, AND git!
 RUN apt-get update && apt-get install -y \
     python3 \
     build-essential \
@@ -17,7 +17,8 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     jq \
     rsync \
-    curl
+    curl \
+    git
 
 # Manually inject Node.js 22 into Ubuntu
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
