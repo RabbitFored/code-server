@@ -5,13 +5,15 @@
 FROM node:22-bookworm AS builder
 
 # Install system dependencies required for compiling VS Code native C++ modules
+# 'jq' is added here to parse JSON during the build script
 RUN apt-get update && apt-get install -y \
     python3 \
     build-essential \
     libx11-dev \
     libxkbfile-dev \
     libsecret-1-dev \
-    pkg-config
+    pkg-config \
+    jq
 
 # Explicitly tell node-gyp to use Python 3
 ENV PYTHON=python3
