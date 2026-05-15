@@ -26,10 +26,14 @@ COPY . .
 RUN npm install
 RUN npm run build
 
-# PATCH: Fix the upstream Gulp task naming mismatch in the bleeding-edge build script
+# PATCH: Fix the upstream Gulp task naming mismatch
 RUN sed -i 's/compile-copilot-extension-full-build/compile-copilot-extension-build/g' ci/build/build-vscode.sh
 
 RUN npm run build:vscode
+
+# ⚡ CACHE SAVER: Install rsync here so we don't invalidate the 20-minute build step above!
+RUN apt-get update && apt-get install -y rsync
+
 RUN npm run release
 RUN npm run release:standalone
 
