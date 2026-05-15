@@ -1,13 +1,54 @@
 # ==========================================
+# STAGE 1: Pure Ubuntu Builder
+# Compiles the raw VS Code engine from source
+# ==========================================
+FROM ubuntu:22.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python, C++ compilers, and essential build utilities
+RUN apt-get update && apt-get install -y \
+    python3 \
+    build-essential \
+    libx11-dev \
+    libxkbfile-dev \
+    libsecret-1-dev \
+    pkg-config \
+    jq \
+    rsync \
+    curl
+
+# Manually inject Node.js 22 into Ubuntu
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs
+
+# Configure build environment variables
+ENV PYTHON=python3
+ENV VERSION="0.0.0-custom"
+
+WORKDIR /src
+COPY . .
+
+# Run the official build pipeline
+RUN npm install
+RUN npm run build
+
+# PATCH: Fix the upstream Gulp task naming mismatch in the bleeding-edge script
+RUN sed -i 's/compile-copilot-extension-full-build/compile-copilot-extension-build/g' ci/build/build-vscode.sh
+
+RUN npm run build:vscode
+RUN npm run release
+RUN npm run release:standalone
+
+# ==========================================
 # STAGE 2: The Final App Image
-# Runs your freshly compiled custom editor on Ubuntu
+# Runs your freshly compiled custom editor on Ubuntu 22.04
 # ==========================================
 FROM ubuntu:22.04
 
-# Prevent timezone/region prompts from freezing the Ubuntu package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install standard tools, Java, Flutter prerequisites, and CA Certificates
+# Install standard tools, Java (for Android SDK), and Flutter prerequisites
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \
@@ -23,7 +64,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jdk \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root 'coder' user for security (using useradd for Ubuntu compatibility)
+# Create the secure 'coder' user
 RUN useradd -m -s /bin/bash coder \
     && echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/nopasswd
 
@@ -31,10 +72,10 @@ RUN useradd -m -s /bin/bash coder \
 RUN git clone https://github.com/flutter/flutter.git -b stable /usr/local/flutter \
     && chown -R coder:coder /usr/local/flutter
 
-# Add Flutter AND your new CapRover host mapping to the system PATH
+# Global PATH mapping for Flutter and your mapped Ubuntu host commands
 ENV PATH="$PATH:/usr/local/flutter/bin:/home/coder/host_cmds"
 
-# Copy ONLY your custom compiled app from the builder stage
+# Copy ONLY the compiled, standalone app from the builder stage
 COPY --from=builder /src/release-standalone /usr/local/lib/code-server
 
 # Make the binary executable and link it globally
@@ -42,7 +83,8 @@ RUN chmod +x /usr/local/lib/code-server/bin/code-server \
     && ln -s /usr/local/lib/code-server/bin/code-server /usr/local/bin/code-server
 
 USER coder
-# Ensure this matches your CapRover Persistent Directory mapping!
+
+# The persistent directory where your daily project code will live
 WORKDIR /home/coder/workspace
 
 EXPOSE 8080
@@ -51,5 +93,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080 || exit 1
 
-# Start your custom server AND fix CapRover volume permissions on boot
+# Start the server and fix CapRover volume permissions on boot
 CMD ["sh", "-c", "sudo chown -R coder:coder /home/coder/workspace && code-server --bind-addr 0.0.0.0:8080 ."]
