@@ -1,50 +1,15 @@
 # ==========================================
-# STAGE 1: The Builder
-# Compiles your custom source code from GitHub
-# ==========================================
-FROM node:22-bookworm AS builder
-
-# Install system dependencies required for compiling VS Code native C++ modules
-RUN apt-get update && apt-get install -y \
-    python3 \
-    build-essential \
-    libx11-dev \
-    libxkbfile-dev \
-    libsecret-1-dev \
-    pkg-config \
-    jq
-
-# Explicitly tell node-gyp to use Python 3
-ENV PYTHON=python3
-
-# Tell the build script what version we are compiling
-ENV VERSION="0.0.0-custom"
-
-WORKDIR /src
-COPY . .
-
-RUN npm install
-RUN npm run build
-
-# PATCH: Fix the upstream Gulp task naming mismatch
-RUN sed -i 's/compile-copilot-extension-full-build/compile-copilot-extension-build/g' ci/build/build-vscode.sh
-
-RUN npm run build:vscode
-
-# ⚡ CACHE SAVER: Install rsync here so we don't invalidate the 20-minute build step above!
-RUN apt-get update && apt-get install -y rsync
-
-RUN npm run release
-RUN npm run release:standalone
-
-# ==========================================
 # STAGE 2: The Final App Image
-# Runs your freshly compiled custom editor
+# Runs your freshly compiled custom editor on Ubuntu
 # ==========================================
-FROM node:22-bookworm-slim
+FROM ubuntu:22.04
 
-# Install standard terminal tools
+# Prevent timezone/region prompts from freezing the Ubuntu package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install standard tools, Java, Flutter prerequisites, and CA Certificates
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     git \
     curl \
     wget \
@@ -52,11 +17,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
     bash \
     sudo \
+    unzip \
+    xz-utils \
+    zip \
+    openjdk-17-jdk \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root 'coder' user for security
-RUN adduser --disabled-password --gecos '' coder \
+# Create a non-root 'coder' user for security (using useradd for Ubuntu compatibility)
+RUN useradd -m -s /bin/bash coder \
     && echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/nopasswd
+
+# Download and configure the Flutter SDK
+RUN git clone https://github.com/flutter/flutter.git -b stable /usr/local/flutter \
+    && chown -R coder:coder /usr/local/flutter
+
+# Add Flutter AND your new CapRover host mapping to the system PATH
+ENV PATH="$PATH:/usr/local/flutter/bin:/home/coder/host_cmds"
 
 # Copy ONLY your custom compiled app from the builder stage
 COPY --from=builder /src/release-standalone /usr/local/lib/code-server
@@ -75,5 +51,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080 || exit 1
 
-# Start your custom server
-CMD ["code-server", "--bind-addr", "0.0.0.0:8080", "."]
+# Start your custom server AND fix CapRover volume permissions on boot
+CMD ["sh", "-c", "sudo chown -R coder:coder /home/coder/workspace && code-server --bind-addr 0.0.0.0:8080 ."]
