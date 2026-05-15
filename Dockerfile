@@ -6,13 +6,14 @@ FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Python, C++ compilers, and essential build utilities
+# Install Python, C++ compilers, build utilities, and the missing Kerberos library
 RUN apt-get update && apt-get install -y \
     python3 \
     build-essential \
     libx11-dev \
     libxkbfile-dev \
     libsecret-1-dev \
+    libkrb5-dev \
     pkg-config \
     jq \
     rsync \
