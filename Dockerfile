@@ -4,6 +4,7 @@
 # ==========================================
 FROM ubuntu:22.04 AS builder
 
+# Prevent timezone/region prompts from freezing the package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install Python, C++ compilers, build utilities, Kerberos, and git
@@ -39,7 +40,6 @@ RUN npm run build
 RUN sed -i 's/compile-copilot-extension-full-build/compile-copilot-extension-build/g' ci/build/build-vscode.sh
 
 RUN npm run build:vscode
-# The standalone script was removed upstream; this generates the final /src/release folder
 RUN npm run release
 
 # ==========================================
@@ -66,11 +66,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jdk \
     && rm -rf /var/lib/apt/lists/*
 
-# Inject Node.js 22 into the final workspace to ensure code-server can boot
+# Inject Node.js 22 into the final workspace to run the raw JavaScript engine
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs
 
-# Create the secure 'coder' user
+# Create the secure 'coder' user with passwordless sudo access
 RUN useradd -m -s /bin/bash coder \
     && echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/nopasswd
 
@@ -84,9 +84,9 @@ ENV PATH="$PATH:/usr/local/flutter/bin:/home/coder/host_cmds"
 # Copy the newly compiled app from the /src/release folder
 COPY --from=builder /src/release /usr/local/lib/code-server
 
-# Make the binary executable and link it globally
-RUN chmod +x /usr/local/lib/code-server/bin/code-server \
-    && ln -s /usr/local/lib/code-server/bin/code-server /usr/local/bin/code-server
+# Create our own global executable wrapper
+RUN echo '#!/bin/sh\nexec node /usr/local/lib/code-server "$@"' > /usr/local/bin/code-server \
+    && chmod +x /usr/local/bin/code-server
 
 USER coder
 
