@@ -42,6 +42,9 @@ RUN sed -i 's/compile-copilot-extension-full-build/compile-copilot-extension-bui
 RUN npm run build:vscode
 RUN npm run release
 
+# PATCH: Install the missing runtime dependencies into the new release folder
+RUN cd release && npm install --omit=dev
+
 # ==========================================
 # STAGE 2: The Final App Image
 # Runs your freshly compiled custom editor on Ubuntu 22.04
@@ -81,7 +84,7 @@ RUN git clone https://github.com/flutter/flutter.git -b stable /usr/local/flutte
 # Global PATH mapping for Flutter and your mapped Ubuntu host commands
 ENV PATH="$PATH:/usr/local/flutter/bin:/home/coder/host_cmds"
 
-# Copy the newly compiled app from the /src/release folder
+# Copy the newly compiled app (now containing its dependencies) from the /src/release folder
 COPY --from=builder /src/release /usr/local/lib/code-server
 
 # Create our own global executable wrapper
